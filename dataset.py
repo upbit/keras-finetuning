@@ -37,17 +37,28 @@ def dataset(base_dir, n):
 
     X = []
     y = []
+    class_count = {}
 
     for class_index, class_name in enumerate(tags):
         filenames = d[class_name]
         for filename in filenames:
             processed_image_count += 1
             img = scipy.misc.imread(filename)
-            height, width, chan = img.shape
-            assert chan == 3
+            try:
+                height, width, chan = img.shape
+                assert chan == 3
+            except:
+                print("[WARN] %s has shape=%s, skip" % (filename, img.shape))
+                continue
             aspect_ratio = float(max((height, width))) / min((height, width))
             if aspect_ratio > 2:
                 continue
+
+            # limit class size
+            # class_count[class_index] = class_count.get(class_index, 0) + 1
+            # if class_count[class_index] > 5000:
+            #     continue
+
             # We pick the largest center square.
             centery = height // 2
             centerx = width // 2
@@ -57,10 +68,11 @@ def dataset(base_dir, n):
             X.append(img)
             y.append(class_index)
             useful_image_count += 1
+
     print "processed %d, used %d" % (processed_image_count, useful_image_count)
 
     X = np.array(X).astype(np.float32)
-    X = X.transpose((0, 3, 1, 2))
+    # X = X.transpose((0, 1, 2, 3))
     X = preprocess_input(X)
     y = np.array(y)
 

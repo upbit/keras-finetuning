@@ -13,6 +13,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.optimizers import SGD
 from keras import backend as K
 from keras.utils import np_utils
+from keras.callbacks import TensorBoard
 
 import dataset
 import net
@@ -21,13 +22,17 @@ np.random.seed(1337)
 
 n = 224
 batch_size = 128
-nb_epoch = 20
-nb_phase_two_epoch = 20
+epoch = 20
+phase_two_epoch = 20
+
 # Use heavy augmentation if you plan to use the model with the
 # accompanying webcam.py app, because webcam data is quite different from photos.
-heavy_augmentation = True
+heavy_augmentation = False
 
 data_directory, model_file_prefix = sys.argv[1:]
+
+# from keras import backend as K
+# K.set_image_data_format('channels_first')
 
 print "loading dataset"
 
@@ -123,13 +128,14 @@ model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=["ac
 
 # train the model on the new data for a few epochs
 
-print "training the newly added dense layers"
+print "training the newly added dense layers, train=%d test=%d batch/%d" % (X_train.shape[0], X_test.shape[0], batch_size)
 
 model.fit_generator(datagen.flow(X_train, Y_train, batch_size=batch_size, shuffle=True),
-            samples_per_epoch=X_train.shape[0],
-            nb_epoch=nb_epoch,
+            steps_per_epoch=X_train.shape[0]/batch_size,
+            epochs=epoch,
             validation_data=datagen.flow(X_test, Y_test, batch_size=batch_size),
-            nb_val_samples=X_test.shape[0],
+            validation_steps=X_test.shape[0]/batch_size,
+            callbacks=[TensorBoard(log_dir='./tb_logs')],
             )
 
 evaluate(model, "000.png")
@@ -149,7 +155,8 @@ for layer in model.layers[172:]:
 
 # we need to recompile the model for these modifications to take effect
 # we use SGD with a low learning rate
-model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='categorical_crossentropy', metrics=["accuracy"])
+# model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='categorical_crossentropy', metrics=["accuracy"])
+model.compile(optimizer=SGD(lr=0.001, momentum=0.9), loss='categorical_crossentropy', metrics=["accuracy"])
 
 # we train our model again (this time fine-tuning the top 2 inception blocks
 # alongside the top Dense layers
@@ -159,10 +166,11 @@ print "fine-tuning top 2 inception blocks alongside the top dense layers"
 for i in range(1,11):
     print "mega-epoch %d/10" % i
     model.fit_generator(datagen.flow(X_train, Y_train, batch_size=batch_size, shuffle=True),
-            samples_per_epoch=X_train.shape[0],
-            nb_epoch=nb_phase_two_epoch,
+            steps_per_epoch=X_train.shape[0]/batch_size,
+            epochs=phase_two_epoch,
             validation_data=datagen.flow(X_test, Y_test, batch_size=batch_size),
-            nb_val_samples=X_test.shape[0],
+            validation_steps=X_test.shape[0]/batch_size,
+            callbacks=[TensorBoard(log_dir='./tb_logs')],
             )
 
     evaluate(model, str(i).zfill(3)+".png")
